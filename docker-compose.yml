@@ -1,0 +1,21 @@
+services:
+  jupyter:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile
+    image: jupyter/pyspark-notebook:latest
+    container_name: jupyter_notebook
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./notebooks:/home/jovyan/work
+      - ./data:/home/jovyan/data
+    environment:
+      - JUPYTER_TOKEN=supersecret
+      - NB_USER=jovyan
+      - NB_UID=1000
+      - NB_GID=100
+      - CHOWN_HOME=yes
+    user: root
+    working_dir: /home/jovyan
+    command: start-notebook.sh --NotebookApp.token=${JUPYTER_TOKEN:-supersecret}
