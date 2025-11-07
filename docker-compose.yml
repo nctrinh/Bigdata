@@ -1,9 +1,6 @@
 services:
   jupyter:
-    build:
-      context: ./docker
-      dockerfile: Dockerfile
-    image: jupyter/pyspark-notebook:latest
+    build: ./jupyter_pyspark
     container_name: jupyter_notebook
     ports:
       - "8888:8888"
@@ -12,10 +9,105 @@ services:
       - ./data:/home/jovyan/data
     environment:
       - JUPYTER_TOKEN=supersecret
-      - NB_USER=jovyan
-      - NB_UID=1000
-      - NB_GID=100
-      - CHOWN_HOME=yes
-    user: root
-    working_dir: /home/jovyan
-    command: start-notebook.sh --NotebookApp.token=${JUPYTER_TOKEN:-supersecret}
+
+  namenode:
+    build: ./namenode
+    container_name: namenode
+    volumes:
+      - hadoop_namenode:/hadoop/dfs/name
+    environment:
+      - CLUSTER_NAME=test
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "9870:9870"
+
+
+  resourcemanager:
+    build: ./resourcemanager
+    container_name: resourcemanager
+    restart: on-failure
+    depends_on:
+      - namenode
+      - datanode1
+      - datanode2
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "8089:8088"
+  
+  nodemanager:
+    build: ./nodemanager
+    container_name: nodemanager
+    depends_on:
+      - namenode
+      - datanode1
+      - datanode2
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "8042:8042"
+
+  historyserver:
+    build: ./historyserver
+    container_name: historyserver
+    depends_on:
+      - namenode
+      - datanode1
+      - datanode2
+    volumes:
+      - hadoop_historyserver:/hadoop/yarn/timeline
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "8188:8188"
+  
+  datanode1:
+    build: ./datanode
+    container_name: datanode1
+    restart: always
+    depends_on:
+      - namenode
+    volumes:
+      - hadoop_datanode1:/hadoop/dfs/data
+    env_file:
+      - ./hadoop.env
+
+  datanode2:
+    build: ./datanode
+    container_name: datanode2
+    restart: always
+    depends_on:
+      - namenode
+    volumes:
+      - hadoop_datanode2:/hadoop/dfs/data
+    env_file:
+      - ./hadoop.env
+
+  spark-master:
+    image: bde2020/spark-master:3.2.1-hadoop3.2
+    container_name: spark-master
+    ports:
+      - 8080:8080
+      - 7077:7077
+    env_file:
+      - ./hadoop.env
+      
+  spark-worker:
+    image: bde2020/spark-worker:3.2.1-hadoop3.2
+    container_name: spark-worker
+    depends_on:
+      - spark-master
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+    ports:
+      - 8081
+    env_file:
+      - ./hadoop.env
+  
+
+volumes:
+  hadoop_namenode:
+  hadoop_datanode1:
+  hadoop_datanode2:
+  hadoop_historyserver:
